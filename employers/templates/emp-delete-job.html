@@ -1,0 +1,10 @@
+{%extends 'base.html'%}
+{%block body_block%}
+<div class="row">
+<form method="post">
+    {%csrf_token%}
+    <p>Are you sure you want to delete Job?"{{ object.title}}"</p>
+<button type="submit">Delete</button>
+</form>
+</div>
+{%endblock%}
