@@ -1,11 +1,14 @@
 from django.shortcuts import render,redirect
 from django.views.generic import View,ListView,DetailView,CreateView,UpdateView,DeleteView,FormView,TemplateView
-from employers.forms import Jobforms
+
 from django.urls import reverse_lazy
-from employers.models import Jobs,CompanyProfile
-from django.contrib.auth.forms import User
-from employers.forms import SignupForm, SigninForm, CompanyProfileForm
+from employers.models import User,Jobs,CompanyProfile
+# from django.contrib.auth.forms import User
+
+from employers.forms import Jobforms,SignupForm, SigninForm, CompanyProfileForm
 from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
+from django.contrib.messages.views import SuccessMessageMixin
 
 class EmployerHome(View):
     def get(self,request):
@@ -15,30 +18,13 @@ class EmpAddJob(CreateView):
     model=Jobs
     form_class = Jobforms
     template_name = 'add-job.html'
-    success_url = reverse_lazy('joblist')
-    pk_url_kwarg = 'id'
-    # def get(self,request):
-    #     form=Jobforms()
-    #     return render(request,'add-job.html',{'form':form})
-    #
-    # def post(self,request):
-    #     form=Jobforms(request.POST)
-    #     if form.is_valid():
-    #         form.save()
-            # jobname=form.cleaned_data.get('JobTitle')
-            # compname=form.cleaned_data.get('CompanyName')
-            # location=form.cleaned_data.get('Location')
-            # exp=form.cleaned_data.get('Experience')
-            # salary=form.cleaned_data.get('salary')
-            # Jobs.objects.create(job_title=jobname,
-            #                     job_comp_name=compname,
-            #                     job_location=location,
-            #                     job_experience=exp,
-            #                     job_salary=salary)
+    success_url = reverse_lazy('addjob')
 
-        #     return render(request,'emp-home.html')
-        # else:
-        #     return render(request,'add-job.html',{'form':form})
+
+    def form_valid(self, form):
+        messages.success(self.request, 'new job created')
+        form.instance.company = self.request.user
+        return super().form_valid(form)
 
 
 #listalljobs
@@ -46,9 +32,11 @@ class JobLisView(ListView):
     model=Jobs
     context_object_name = 'jobs'
     template_name = 'emp_job-list.html'
+    def get_queryset(self):
+        return Jobs.objects.filter(company=self.request.user)
     # def get(self,request):
-    #     res=Jobs.objects.all()
-    #     return render(request,'emp_job-list.html',{'jobs':res})
+    #     res=Jobs.objects.filter(company=request.user)
+    #     return render(request,self.template_name,{'jobs':res})
 
 #detailview
 
@@ -69,12 +57,14 @@ class JobDetailView(DetailView):
 
 #editjob
 
-class EditView(UpdateView):
+class EditView(SuccessMessageMixin,UpdateView):
     model = Jobs
     form_class = Jobforms
     template_name = 'edit-emp_job.html'
     pk_url_kwarg = 'id'
     success_url = reverse_lazy('joblist')
+    success_message ='Job Updated Successfully'
+
 
 
 
@@ -94,11 +84,13 @@ class EditView(UpdateView):
 
 
 #deletejob
-class DeleteJob(DeleteView):
+class DeleteJob(DeleteView,SuccessMessageMixin):
     pk_url_kwarg = 'id'
     model = Jobs
     template_name = 'emp-delete-job.html'
     success_url = reverse_lazy('joblist')
+
+
 
     # def get(self,request,id)
 
@@ -122,13 +114,17 @@ class Signin(FormView):
             user=authenticate(request,username=username,password=password)
             if user:
                 login(request,user)
-                return redirect('emp_home')
+                if request.user.role=='employer':
+                     return redirect('emp_home')
+                elif request.user.role=='candidate':
+                    return redirect('cand-joblist')
             else:
-                return render(request,self.template_name,{'form':form})
-
+                return render(request,self.template_name,{'form':form,'errmsg':'Incorrect username or password'})
+        else:
+            return render(request,self.template_name,{'form':form,'errmsg':'Incorrect username or password'})
 def logout_view(request,*args,**kwargs):
     logout(request)
-    return redirect('signin')
+    return redirect('signout')
 
 
 #password change
@@ -155,17 +151,18 @@ class PasswordReset(TemplateView):
             usr=User.objects.get(username=request.user)
             usr.set_password(confirm_pwd)
             usr.save()
-            return render(request,self.template_name,{'success_msg':'Password Changed Successfully!'})
+            return redirect('signin')
+            # return render(request,self.template_name,{'success_msg':'Password Changed Successfully!'})
         else:
             return render(request,self.template_name,{'err_msg':'Password Missmatch'})
 
 
-class CompanyProfileView(CreateView):
+class CompanyProfileView(SuccessMessageMixin,CreateView):
     template_name= 'emp-add_companyprofile.html'
     form_class = CompanyProfileForm
     model=CompanyProfile
-    success_url = reverse_lazy('emp_home')
-
+    success_url = reverse_lazy('emp_profileview')
+    success_message = 'Profile Created'
     def form_valid(self,form):
         form.instance.user=self.request.user
         return super().form_valid(form)
@@ -177,12 +174,13 @@ class EmpProfileView(TemplateView):
 
 
 #editcompprofile
-class EmpEditCompanyProfile(UpdateView):
+class EmpEditCompanyProfile(SuccessMessageMixin,UpdateView):
     model=CompanyProfile
     form_class = CompanyProfileForm
     pk_url_kwarg = 'id'
     template_name = 'emp-edit_companyprofile.html'
     success_url = reverse_lazy('emp_profileview')
+    success_message = 'Profile Updated'
 
 
 
